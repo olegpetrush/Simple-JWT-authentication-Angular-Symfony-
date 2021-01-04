@@ -1,0 +1,17 @@
+<div fxLayout="column" fxLayoutAlign="space-around" fxLayoutGap="12px">
+
+  <div fxFlex>
+    <div fxLayout="row" fxLayoutAlign="end" fxLayoutGap="12px">
+      <button mat-raised-button color="accent" (click)="onClickCreate()">ADD</button>
+    </div>
+  </div>
+
+  <div fxFlex>
+    <div fxLayout="row wrap" fxLayout.xs="column wrap" fxLayoutGap="12px grid">
+      <div fxFlex="25" fxFlex.lt-lg="33" fxFlex.lt-md="50" fxFlex.lt-sm *ngFor="let product of products">
+        <app-product-item [product]="product"></app-product-item>
+      </div>
+    </div>
+  </div>
+
+</div>

@@ -1,0 +1,138 @@
+version: '2'
+
+services:
+
+### Applications Code Container #############################
+
+    applications:
+      image: tianon/true
+      volumes:
+        - ${APPLICATION}:/var/www
+
+### Workspace Utilities Container ###########################
+
+    workspace:
+      build:
+        context: ./workspace
+      expose:
+        - "4200"
+      ports:
+        - "4200:4200"
+      volumes_from:
+        - applications
+      tty: true
+      depends_on:
+        - postgres
+        - rabbitmq
+        - mercure
+       
+### Api consumer Container ###########################
+
+    api_consumer:
+      build:
+        context: ./workspace
+      restart: always
+      command: api/bin/console rabbitmq:consumer media -vv
+      volumes_from:
+        - applications
+      depends_on:
+        - rabbitmq
+        
+### Media consumer Container ###########################
+
+    media_consumer:
+      build:
+        context: ./workspace
+      restart: always
+      command: image-service/bin/console rabbitmq:consumer media -vv
+      volumes_from:
+        - applications
+      depends_on:
+        - rabbitmq
+      
+### Composer Container #############################
+
+    composer:
+      image: composer
+      volumes:
+        - ${APPLICATION}:/app
+
+### PHP-FPM Container #######################################
+
+    php-fpm:
+      build:
+        context: ./php-fpm
+      volumes_from:
+        - applications
+      expose:
+        - "9000"
+      depends_on:
+        - workspace
+        - postgres
+        - api_consumer
+        - media_consumer
+
+### NGINX Server Container ##################################
+
+    nginx:
+      build:
+        context: ./nginx
+        args:
+          - PHP_UPSTREAM_CONTAINER=${NGINX_PHP_UPSTREAM_CONTAINER}
+          - PHP_UPSTREAM_PORT=${NGINX_PHP_UPSTREAM_PORT}
+      volumes_from:
+        - applications
+      volumes:
+        - ${NGINX_HOST_LOG_PATH}:/var/log/nginx
+        - ${NGINX_SITES_PATH}:/etc/nginx/sites-available
+      ports:
+        - "${NGINX_HOST_HTTP_PORT}:80"
+        - "${NGINX_HOST_HTTPS_PORT}:443"
+      depends_on:
+        - php-fpm
+
+### PostgreSQL Container ####################################
+
+    postgres:
+      build: ./postgres
+      volumes:
+        - ${DATA_SAVE_PATH}/postgres:/var/lib/postgresql/data
+      ports:
+        - "${POSTGRES_PORT}:5432"
+      environment:
+        - POSTGRES_DB=${POSTGRES_DB}
+        - POSTGRES_USER=${POSTGRES_USER}
+        - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+        
+### RabbitMQ Container ######################################
+
+    rabbitmq:
+      build: ./rabbitmq
+      ports:
+        - "${RABBITMQ_NODE_HOST_PORT}:5672"
+        - "${RABBITMQ_MANAGEMENT_HTTP_HOST_PORT}:15672"
+        - "${RABBITMQ_MANAGEMENT_HTTPS_HOST_PORT}:15671"
+      privileged: true
+      environment:
+        - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+        - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+  
+### Mercure Container ######################################
+      
+    mercure:
+      image: dunglas/mercure
+      ports:
+        - "${MERCURE_PORT}:80"
+      privileged: true
+      environment:
+        - DEBUG=1
+        - ALLOW_ANONYMOUS=1
+        - JWT_KEY=!UnsecureChangeMe!
+        - CORS_ALLOWED_ORIGINS=*
+        - PUBLISH_ALLOWED_ORIGINS=http://localhost
+
+### Volumes Setup #############################################
+
+volumes:
+  postgres:
+    driver: "local"
